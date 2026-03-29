@@ -116,7 +116,6 @@ print(results["similarity_matrix"])
 
 ```
 modellens/
-├── modellens/
 │   ├── core/           # ModelLens class and hook infrastructure
 │   ├── adapters/       # HuggingFace and PyTorch backend adapters
 │   ├── analysis/       # Interpretability analysis modules
