@@ -40,7 +40,16 @@ class TransformerBlock(nn.Module):
     def forward(self, x):
         # Attention sublayer with residual.
         normed = self.ln_1(x)
-        attn_out, _ = self.attn(normed, normed, normed, need_weights=False)
+        seq_len = x.size(1)
+        causal_mask = torch.triu(
+            torch.ones(seq_len, seq_len, device=x.device, dtype=torch.bool),
+            diagonal=1,
+        )
+        attn_out, _ = self.attn(
+            normed, normed, normed,
+            attn_mask=causal_mask,
+            need_weights=False,
+        )
         x = x + attn_out
 
         # MLP sublayer with residual.
