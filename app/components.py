@@ -1,11 +1,9 @@
 """Reusable analysis + plotting helpers for the Gradio shell."""
 
 from __future__ import annotations
-
 import json
 import traceback
 from typing import Any, Dict, List, Optional, Tuple
-
 import torch
 
 from modellens import ModelLens
@@ -19,7 +17,10 @@ from modellens.analysis.comparison import (
     compare_forward_outputs,
     run_comparative_logit_lens,
 )
-from modellens.analysis.divergence import first_divergence_module, run_activation_divergence
+from modellens.analysis.divergence import (
+    first_divergence_module,
+    run_activation_divergence,
+)
 from modellens.analysis.backward_trace import run_backward_trace
 from modellens.analysis.embeddings import run_embeddings_analysis
 from modellens.analysis.forward_trace import run_forward_trace
@@ -52,8 +53,14 @@ from modellens.visualization.forward_flow import (
     plot_last_token_hidden_norm,
 )
 from modellens.visualization.logit_evolution import plot_logit_lens_confidence_panel
-from modellens.visualization.logit_lens import plot_logit_lens_evolution, plot_logit_lens_heatmap
-from modellens.visualization.overview import model_info_markdown, plot_parameter_sunburst_or_bar
+from modellens.visualization.logit_lens import (
+    plot_logit_lens_evolution,
+    plot_logit_lens_heatmap,
+)
+from modellens.visualization.overview import (
+    model_info_markdown,
+    plot_parameter_sunburst_or_bar,
+)
 from modellens.visualization.residuals import plot_residual_contributions
 from modellens.visualization.shapes import (
     compute_shape_trace,
@@ -67,6 +74,13 @@ from modellens.visualization.backward_flow import (
     plot_gradient_norm_top_n,
 )
 from modellens.visualization.attention import plot_attention_head_entropy
+from modellens.analysis.circuit_discovery import discover_circuit, summarize_circuit
+from modellens.analysis.batch_patching import (
+    run_batch_patching,
+    summarize_batch_patching,
+)
+from modellens.analysis.layer_evolution import run_layer_evolution, summarize_evolution
+
 
 try:
     import plotly.graph_objects as go
@@ -259,9 +273,7 @@ def run_attn_fig(
     if hasattr(w, "shape") and w.ndim == 4:
         nh = int(w.shape[1])
         head_index = int(min(max(0, head_index), max(0, nh - 1)))
-    fig = plot_attention_heatmap(
-        ar, layer_index=layer_index, head_index=head_index
-    )
+    fig = plot_attention_heatmap(ar, layer_index=layer_index, head_index=head_index)
     try:
         fig_entropy = plot_attention_head_entropy(
             ar, layer_index=layer_index, max_heads=12
@@ -315,7 +327,11 @@ def run_logit_figs(
 
     layers_ordered = lr.get("layers_ordered") or list(layer_results.keys())
     final_layer = layers_ordered[-1] if layers_ordered else None
-    final_top1 = float(layer_results.get(final_layer, {}).get("top1_prob", 0.0)) if final_layer else 0.0
+    final_top1 = (
+        float(layer_results.get(final_layer, {}).get("top1_prob", 0.0))
+        if final_layer
+        else 0.0
+    )
     flips = lr.get("top1_identity_changes", None)
 
     summary_html = (
@@ -348,11 +364,11 @@ def run_forward_figs(
     top_n: int = 60,
 ) -> Tuple[Any, Any, Any]:
     tokens = tokenize(lens, prompt)
-    tr = run_forward_trace(
-        lens, tokens, max_modules=int(max_modules)
-    )
+    tr = run_forward_trace(lens, tokens, max_modules=int(max_modules))
     if not tr.get("records"):
-        ef = _empty_fig("No forward trace records — try increasing max modules or check hooks.")
+        ef = _empty_fig(
+            "No forward trace records — try increasing max modules or check hooks."
+        )
         return ef, ef, ef
     summary_field = "norm_mean"
     if display_mode == "top_n":
@@ -553,7 +569,9 @@ def run_corruption_story(
         )
         fig_div_fam = plot_family_divergence(div, metric="mean_cosine_distance")
     except Exception:
-        fig_div = _empty_fig("Activation divergence failed (try fewer modules or another backend).")
+        fig_div = _empty_fig(
+            "Activation divergence failed (try fewer modules or another backend)."
+        )
         fig_div_fam = _empty_fig("Family divergence unavailable.")
         hint = None
 
@@ -582,7 +600,9 @@ def run_corruption_story(
         )
         fig_attn_ent = plot_attention_entropy_delta_heads(ca)
     except Exception:
-        fig_attn = _empty_fig("Attention comparison unavailable (e.g. missing attention weights).")
+        fig_attn = _empty_fig(
+            "Attention comparison unavailable (e.g. missing attention weights)."
+        )
         fig_attn_ent = _empty_fig("Entropy shift unavailable.")
 
     try:
@@ -659,7 +679,9 @@ def presentation_story(
     try:
         tokens = tokenize(lens, prompt)
         rows = compute_shape_trace(lens, tokens)
-        fig_shape = plot_shape_trace_table(rows, max_rows=50, title="Story — shape trace")
+        fig_shape = plot_shape_trace_table(
+            rows, max_rows=50, title="Story — shape trace"
+        )
 
         ar = run_attention_analysis(lens, tokens)
         fig_attn = plot_attention_heatmap(ar, layer_index=0, head_index=0)
@@ -678,9 +700,9 @@ def presentation_story(
         fig_patch_rec = plot_patching_recovery_fraction(pr)
 
         try:
-            fs = compare_forward_outputs(
-                lens, clean_t, cor_t, align_input_ids=False
-            )["summary"]
+            fs = compare_forward_outputs(lens, clean_t, cor_t, align_input_ids=False)[
+                "summary"
+            ]
             corrupt_line = (
                 f"\n\n---\n**Corruption readout:** prediction changed **{fs['prediction_changed']}**, "
                 f"Δentropy **{fs['entropy_delta']:+.3f}**, Δmargin **{fs['margin_delta']:+.3f}**.\n"
@@ -718,3 +740,409 @@ def presentation_story(
             f"{tb}</pre></details>"
         )
         return ef, ef, ef, ef, ef, ef, ef, msg
+
+
+def run_circuit_discovery_fig(
+    lens: ModelLens,
+    clean: str,
+    corrupted: str,
+    threshold: float = 0.3,
+) -> Tuple[str, Any, Any]:
+    """Run circuit discovery and return summary HTML + node/edge plots."""
+    clean_t = tokenize(lens, clean)
+    cor_t = tokenize(lens, corrupted)
+    clean_t, cor_t = _align_patch_inputs(clean_t, cor_t)
+
+    # Clear hooks
+    for _, module in lens.model.named_modules():
+        module._forward_hooks.clear()
+
+    circuit = discover_circuit(
+        lens,
+        clean_t,
+        cor_t,
+        importance_threshold=float(threshold),
+    )
+
+    # Summary HTML
+    nodes = circuit.get("nodes", [])
+    edges = circuit.get("edges", [])
+
+    html_parts = [
+        "<div style='font-family:system-ui;line-height:1.55'>",
+        f"<b>Components:</b> {len(nodes)} &nbsp;|&nbsp; "
+        f"<b>Connections:</b> {len(edges)} &nbsp;|&nbsp; "
+        f"<b>Clean metric:</b> {circuit.get('clean_metric', 0):.4f} &nbsp;|&nbsp; "
+        f"<b>Corrupted metric:</b> {circuit.get('corrupted_metric', 0):.4f}",
+        "<br/><br/>",
+    ]
+
+    # Group nodes by role
+    from modellens.visualization.module_families import family_color_map
+
+    colors = family_color_map()
+
+    for role in ["critical", "booster", "gate", "processor"]:
+        role_nodes = [n for n in nodes if n["role"] == role]
+        if role_nodes:
+            role_colors = {
+                "critical": "#ef4444",
+                "booster": "#3b82f6",
+                "gate": "#f59e0b",
+                "processor": "#6b7280",
+            }
+            rc = role_colors.get(role, "#6b7280")
+            html_parts.append(f"<b style='color:{rc}'>{role.upper()}</b><br/>")
+            for n in role_nodes:
+                html_parts.append(
+                    f"&nbsp;&nbsp;<code>{n['name']}</code> "
+                    f"({n['family']}) — effect: {n['normalized_effect']:+.3f}<br/>"
+                )
+            html_parts.append("<br/>")
+
+    html_parts.append("</div>")
+    summary_html = "".join(html_parts)
+
+    # Node importance bar chart
+    if nodes and go is not None:
+        sorted_nodes = sorted(
+            nodes, key=lambda n: abs(n["normalized_effect"]), reverse=True
+        )
+        names = [
+            n["name"].split(".")[-2] + "." + n["name"].split(".")[-1]
+            for n in sorted_nodes
+        ]
+        effects = [n["normalized_effect"] for n in sorted_nodes]
+        bar_colors = [
+            {
+                "critical": "#ef4444",
+                "booster": "#3b82f6",
+                "gate": "#f59e0b",
+                "processor": "#6b7280",
+            }.get(n["role"], "#6b7280")
+            for n in sorted_nodes
+        ]
+
+        fig_nodes = go.Figure(
+            go.Bar(
+                x=effects,
+                y=names,
+                orientation="h",
+                marker_color=bar_colors,
+                text=[n["role"] for n in sorted_nodes],
+                textposition="auto",
+            )
+        )
+        fig_nodes.update_layout(
+            **default_plotly_layout(
+                title="Circuit components by causal effect",
+                width=900,
+                height=max(300, len(nodes) * 35),
+            ),
+            xaxis_title="Normalized effect",
+            yaxis=dict(autorange="reversed"),
+        )
+    else:
+        fig_nodes = _empty_fig("No circuit components found.")
+
+    # Edge connection chart
+    if edges and go is not None:
+        edge_labels = []
+        edge_weights = []
+        edge_colors = []
+        for e in edges:
+            src = e["from"].split(".")[-2] + "." + e["from"].split(".")[-1]
+            dst = e["to"].split(".")[-2] + "." + e["to"].split(".")[-1]
+            edge_labels.append(f"{src} → {dst}")
+            edge_weights.append(e.get("weight", 0.5))
+            edge_colors.append(
+                "#0ea5e9" if e["type"] == "attention_routing" else "#64748b"
+            )
+
+        fig_edges = go.Figure(
+            go.Bar(
+                x=edge_weights,
+                y=edge_labels,
+                orientation="h",
+                marker_color=edge_colors,
+            )
+        )
+        fig_edges.update_layout(
+            **default_plotly_layout(
+                title="Circuit connections (blue = attention routing, gray = sequential)",
+                width=900,
+                height=max(250, len(edges) * 30),
+            ),
+            xaxis_title="Connection weight",
+            yaxis=dict(autorange="reversed"),
+        )
+    else:
+        fig_edges = _empty_fig("No circuit connections found.")
+
+    return summary_html, fig_nodes, fig_edges
+
+
+def run_batch_patching_fig(
+    lens: ModelLens,
+    prompts_json: str,
+) -> Tuple[str, Any]:
+    """Run batch patching from JSON array of [clean, corrupted] pairs."""
+    try:
+        raw = json.loads(prompts_json)
+    except json.JSONDecodeError as e:
+        return f"<p>Invalid JSON: {e}</p>", _empty_fig("Invalid JSON input")
+
+    if not isinstance(raw, list) or not raw:
+        return "<p>Provide a JSON array of [clean, corrupted] pairs.</p>", _empty_fig(
+            "Empty input"
+        )
+
+    pairs = []
+    for item in raw:
+        if isinstance(item, (list, tuple)) and len(item) == 2:
+            c_str, k_str = item
+            c_t = tokenize(lens, c_str)
+            k_t = tokenize(lens, k_str)
+            c_t, k_t = _align_patch_inputs(c_t, k_t)
+            pairs.append((c_t, k_t))
+
+    if not pairs:
+        return "<p>No valid pairs found.</p>", _empty_fig("No valid pairs")
+
+    # Clear hooks
+    for _, module in lens.model.named_modules():
+        module._forward_hooks.clear()
+
+    def prob_metric(output):
+        if hasattr(output, "logits"):
+            output = output.logits
+        probs = torch.softmax(output[:, -1, :], dim=-1)
+        return probs.max(dim=-1).values.mean().item()
+
+    results = run_batch_patching(lens, pairs, metric_fn=prob_metric)
+
+    summary_html = (
+        "<div style='font-family:system-ui;line-height:1.55'>"
+        f"<b>Pairs:</b> {results['num_successful']}/{results['num_pairs']} successful &nbsp;|&nbsp; "
+        f"<b>Overall consistency:</b> {results.get('consistency', {}).get('overall_consistency', 0):.3f}"
+        "</div>"
+    )
+
+    # Bar chart of top components
+    agg = results.get("aggregated", {})
+    layers = results.get("layers_ordered", [])[:20]
+    consistency = results.get("consistency", {}).get("per_layer", {})
+
+    if layers and go is not None:
+        short_names = []
+        mean_effects = []
+        std_effects = []
+        cons_scores = []
+
+        for name in layers:
+            data = agg[name]
+            parts = name.split(".")
+            short = parts[-2] + "." + parts[-1] if len(parts) >= 2 else name
+            short_names.append(short)
+            mean_effects.append(data["mean_normalized_effect"])
+            std_effects.append(data["std_normalized_effect"])
+            cons_scores.append(consistency.get(name, {}).get("consistency_score", 0))
+
+        # Color by consistency
+        bar_colors = [
+            f"rgba({int(59 + (239-59)*(1-c))}, {int(130*c)}, {int(246*c)}, 0.8)"
+            for c in cons_scores
+        ]
+
+        fig = go.Figure()
+        fig.add_trace(
+            go.Bar(
+                x=mean_effects,
+                y=short_names,
+                orientation="h",
+                marker_color=bar_colors,
+                error_x=dict(type="data", array=std_effects, visible=True),
+                text=[f"cons: {c:.2f}" for c in cons_scores],
+                textposition="auto",
+            )
+        )
+        fig.update_layout(
+            **default_plotly_layout(
+                title="Batch patching — mean effect ± std (color = consistency)",
+                width=900,
+                height=max(400, len(layers) * 30),
+            ),
+            xaxis_title="Mean normalized effect",
+            yaxis=dict(autorange="reversed"),
+        )
+    else:
+        fig = _empty_fig("No batch patching results.")
+
+    return summary_html, fig
+
+
+def run_layer_evolution_fig(
+    lens: ModelLens,
+    prompt: str,
+    top_k: int = 10,
+    use_blocks_only: bool = True,
+) -> Tuple[str, Any, Any]:
+    """Run layer evolution and return summary + trajectory plots."""
+    tokens = tokenize(lens, prompt)
+    tok = getattr(lens.adapter, "_tokenizer", None)
+
+    layer_names = None
+    if use_blocks_only:
+        block_names = transformer_block_layer_names(lens.model)
+        # Add final layer norm if it exists
+        for name, _ in lens.model.named_modules():
+            if "ln_f" in name or "norm" in name.split(".")[-1]:
+                block_names.append(name)
+                break
+        if block_names:
+            layer_names = block_names
+
+    # Clear hooks
+    for _, module in lens.model.named_modules():
+        module._forward_hooks.clear()
+
+    evolution = run_layer_evolution(
+        lens,
+        tokens,
+        top_k=top_k,
+        tokenizer=tok,
+        layer_names=layer_names,
+    )
+
+    # Summary HTML
+    moments = evolution.get("key_moments", {})
+    summary_parts = [
+        "<div style='font-family:system-ui;line-height:1.55'>",
+        f"<b>Layers analyzed:</b> {evolution['num_layers']}<br/>",
+    ]
+
+    if "first_confidence" in moments:
+        m = moments["first_confidence"]
+        summary_parts.append(
+            f"<b>First confidence:</b> {m['layer']} (entropy: {m['entropy']:.3f})<br/>"
+        )
+    if "biggest_shift" in moments:
+        m = moments["biggest_shift"]
+        summary_parts.append(
+            f"<b>Biggest shift:</b> {m['layer']} (KL: {m['kl_divergence']:.3f})<br/>"
+        )
+    if "top1_stabilizes" in moments:
+        m = moments["top1_stabilizes"]
+        summary_parts.append(f"<b>Top-1 stabilizes after:</b> {m['layer']}<br/>")
+
+    # Top token trajectories
+    trajectories = evolution.get("token_trajectories", {})
+    sorted_tokens = sorted(
+        trajectories.values(),
+        key=lambda t: t["max_prob"],
+        reverse=True,
+    )[:5]
+
+    if sorted_tokens:
+        summary_parts.append("<br/><b>Top token trajectories:</b><br/>")
+        for t in sorted_tokens:
+            first = t["probs_per_layer"][0] if t["probs_per_layer"] else 0
+            final = t["final_prob"]
+            direction = "↑" if final > first else "↓" if final < first else "→"
+            summary_parts.append(
+                f"&nbsp;&nbsp;<code>{t['token_str']}</code> — "
+                f"peak: {t['max_prob']:.4f}, final: {final:.4f} {direction}<br/>"
+            )
+
+    summary_parts.append("</div>")
+    summary_html = "".join(summary_parts)
+
+    # Confidence + entropy trajectory plot
+    layers_ordered = evolution["layers_ordered"]
+    short_names = []
+    for name in layers_ordered:
+        parts = name.split(".")
+        short_names.append(parts[-1] if len(parts) > 1 else name)
+
+    if go is not None and layers_ordered:
+        fig_confidence = go.Figure()
+        fig_confidence.add_trace(
+            go.Scatter(
+                x=short_names,
+                y=evolution["confidence_trajectory"],
+                mode="lines+markers",
+                name="Top-1 probability",
+                line=dict(color="#3b82f6", width=2),
+            )
+        )
+        fig_confidence.add_trace(
+            go.Scatter(
+                x=short_names,
+                y=evolution["entropy_trajectory"],
+                mode="lines+markers",
+                name="Entropy",
+                line=dict(color="#ef4444", width=2),
+                yaxis="y2",
+            )
+        )
+
+        # Add KL divergence if available
+        kl_vals = [k if k is not None else 0 for k in evolution["kl_trajectory"]]
+        fig_confidence.add_trace(
+            go.Scatter(
+                x=short_names,
+                y=kl_vals,
+                mode="lines",
+                name="KL from prev layer",
+                line=dict(color="#10b981", width=1, dash="dot"),
+                yaxis="y2",
+            )
+        )
+
+        fig_confidence.update_layout(
+            **default_plotly_layout(
+                title="Prediction confidence evolution",
+                width=900,
+                height=400,
+            ),
+            yaxis=dict(title="Top-1 probability"),
+            yaxis2=dict(
+                title="Entropy / KL",
+                overlaying="y",
+                side="right",
+            ),
+            xaxis=dict(title="Layer", tickangle=45),
+        )
+    else:
+        fig_confidence = _empty_fig("No evolution data.")
+
+    # Token trajectory plot
+    if go is not None and sorted_tokens:
+        fig_tokens = go.Figure()
+        token_colors = ["#3b82f6", "#ef4444", "#10b981", "#f59e0b", "#8b5cf6"]
+        for i, t in enumerate(sorted_tokens):
+            color = token_colors[i % len(token_colors)]
+            fig_tokens.add_trace(
+                go.Scatter(
+                    x=short_names,
+                    y=t["probs_per_layer"],
+                    mode="lines+markers",
+                    name=t["token_str"],
+                    line=dict(color=color, width=2),
+                    marker=dict(size=4),
+                )
+            )
+
+        fig_tokens.update_layout(
+            **default_plotly_layout(
+                title="Token probability trajectories across layers",
+                width=900,
+                height=400,
+            ),
+            xaxis=dict(title="Layer", tickangle=45),
+            yaxis=dict(title="Probability"),
+        )
+    else:
+        fig_tokens = _empty_fig("No token trajectories available.")
+
+    return summary_html, fig_confidence, fig_tokens

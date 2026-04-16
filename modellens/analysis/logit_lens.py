@@ -50,6 +50,8 @@ def run_logit_lens(
             continue
         if activation.shape[-1] != hidden_dim:
             continue
+        if activation.dim() < 3:
+            continue
 
         # activation shape: (batch, seq_len, hidden_dim)
         # unembed shape: (vocab_size, hidden_dim)
@@ -95,13 +97,13 @@ def run_logit_lens(
             for i in range(idx.shape[0]):
                 tid = idx[i].item()
                 try:
-                    toks.append(
-                        tokenizer.convert_ids_to_tokens([tid])[0]
-                    )
+                    toks.append(tokenizer.convert_ids_to_tokens([tid])[0])
                 except Exception:
                     toks.append(tokenizer.decode([tid]))
             top_tokens_per_layer.append(toks)
-            top_probs_per_layer.append([float(pr[j].item()) for j in range(pr.shape[0])])
+            top_probs_per_layer.append(
+                [float(pr[j].item()) for j in range(pr.shape[0])]
+            )
 
     out: Dict = {
         "layer_results": results,

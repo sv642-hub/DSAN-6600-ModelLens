@@ -1,9 +1,7 @@
 """Residual stream contribution plots."""
 
 from __future__ import annotations
-
 from typing import Any, Dict, Optional
-
 from modellens.visualization.common import default_plotly_layout, truncate_label
 from modellens.visualization.schemas import residual_dict_to_viz
 
@@ -89,7 +87,9 @@ def plot_residual_lines(
         )
     )
     fig.update_layout(
-        **default_plotly_layout(title=title or "Residual stream metrics", width=width, height=height),
+        **default_plotly_layout(
+            title=title or "Residual stream metrics", width=width, height=height
+        ),
         yaxis2=dict(
             title="Relative contribution",
             overlaying="y",

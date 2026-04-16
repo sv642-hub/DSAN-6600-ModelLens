@@ -1,18 +1,17 @@
 """Plotly attention heatmaps from ``run_attention_analysis`` outputs."""
 
 from __future__ import annotations
-
 from typing import Any, Dict, List, Optional
-
 import numpy as np
 import torch
-
 from modellens.visualization.common import default_plotly_layout, truncate_labels
 
 try:
     import plotly.graph_objects as go
 except ImportError as e:  # pragma: no cover
-    raise ImportError("plotly is required for attention plots; pip install plotly") from e
+    raise ImportError(
+        "plotly is required for attention plots; pip install plotly"
+    ) from e
 
 
 def plot_attention_heatmap(
@@ -43,7 +42,9 @@ def plot_attention_heatmap(
 
     if layer_key is None:
         if layer_index < 0 or layer_index >= len(ordered):
-            raise IndexError(f"layer_index {layer_index} out of range for layers_ordered")
+            raise IndexError(
+                f"layer_index {layer_index} out of range for layers_ordered"
+            )
         layer_key = ordered[layer_index]
 
     if layer_key not in maps:
@@ -73,6 +74,8 @@ def plot_attention_heatmap(
             x=labels,
             y=labels,
             colorscale="Blues",
+            texttemplate="%{z:.2f}",
+            textfont={"size": 11},
             hovertemplate="query=%{y}<br>key=%{x}<br>p=%{z:.4f}<extra></extra>",
         )
     )
@@ -138,6 +141,8 @@ def plot_attention_head_grid(
                 y=labels,
                 colorscale="Blues",
                 showscale=(h == 0),
+                texttemplate="%{z:.2f}",
+                textfont={"size": 9},
                 hovertemplate="h=%d query=%%{y}<br>key=%%{x}<br>p=%%{z:.4f}<extra></extra>"
                 % h,
             ),
@@ -174,7 +179,9 @@ def plot_attention_head_entropy(
 
     if layer_key is None:
         if layer_index < 0 or layer_index >= len(ordered):
-            raise IndexError(f"layer_index {layer_index} out of range for layers_ordered")
+            raise IndexError(
+                f"layer_index {layer_index} out of range for layers_ordered"
+            )
         layer_key = ordered[layer_index]
     if layer_key not in maps:
         raise KeyError(f"Unknown layer_key {layer_key!r}")

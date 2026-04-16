@@ -1,11 +1,8 @@
 """Activation patching importance plots."""
 
 from __future__ import annotations
-
 from typing import Any, Dict, Optional
-
 import numpy as np
-
 from modellens.visualization.common import default_plotly_layout, truncate_label
 from modellens.visualization.schemas import patching_dict_to_viz
 from modellens.visualization.module_families import (
@@ -42,7 +39,9 @@ def plot_patching_importance_bar(
             fam = infer_module_family(m)
             by_family.setdefault(fam, []).append(float(val))
         families = sorted(by_family.keys(), key=lambda f: f.lower())
-        agg_vals = [float(sum(by_family[f]) / max(1, len(by_family[f]))) for f in families]
+        agg_vals = [
+            float(sum(by_family[f]) / max(1, len(by_family[f]))) for f in families
+        ]
         colors = [family_color_map().get(f, "#334155") for f in families]
         labels = [truncate_label(f, max_len=28) for f in families]
         fig = go.Figure(
@@ -227,8 +226,7 @@ def format_patching_summary_html(patching_result: Dict[str, Any]) -> str:
         f"<small>Tested modules: {n_mod}.</small>"
         f" <small>Family signal (avg effect): best={best_fam}, worst={worst_fam}.</small>"
         "</div>"
-        "</div>"
-        + _patching_prediction_story_fragment(patching_result)
+        "</div>" + _patching_prediction_story_fragment(patching_result)
     )
 
 
@@ -282,8 +280,7 @@ def plot_patching_family_effect_recovery_heatmap(
     )
     fig.update_layout(
         **default_plotly_layout(
-            title=title
-            or "Patching family summary — effect vs recovery (avg)",
+            title=title or "Patching family summary — effect vs recovery (avg)",
             width=width,
             height=height,
         )
@@ -314,7 +311,9 @@ def plot_patching_recovery_fraction(
             fam = infer_module_family(m)
             by_family.setdefault(fam, []).append(float(val))
         families = sorted(by_family.keys(), key=lambda f: f.lower())
-        agg_vals = [float(sum(by_family[f]) / max(1, len(by_family[f]))) for f in families]
+        agg_vals = [
+            float(sum(by_family[f]) / max(1, len(by_family[f]))) for f in families
+        ]
         colors = [family_color_map().get(f, "#334155") for f in families]
         labels = [truncate_label(f, max_len=28) for f in families]
         fig = go.Figure(
