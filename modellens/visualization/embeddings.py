@@ -1,11 +1,8 @@
 """Embedding similarity and neighbor views."""
 
 from __future__ import annotations
-
 from typing import Any, Dict, List, Optional
-
 import numpy as np
-
 from modellens.visualization.common import default_plotly_layout, truncate_labels
 
 try:
@@ -38,6 +35,8 @@ def plot_embedding_similarity_heatmap(
             x=labels,
             y=labels,
             colorscale="RdBu",
+            texttemplate="%{z:.2f}",
+            textfont={"size": 11},
             zmid=0.0,
             hovertemplate="i=%{y}<br>j=%{x}<br>cos=%{z:.3f}<extra></extra>",
         )

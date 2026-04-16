@@ -22,6 +22,9 @@ from app.components import (
     run_patch_fig,
     run_residual_fig,
     snapshot_metric_fig,
+    run_circuit_discovery_fig,
+    run_batch_patching_fig,
+    run_layer_evolution_fig,
 )
 from app.demo_data import (
     APP_TITLE,
@@ -79,13 +82,16 @@ def create_app():
 
         gr.Markdown(
             "**Model source** — Hugging Face needs the **`transformers`** package (`pip install transformers` "
-            "or `pip install -e \".[app]\"`). ToyTransformer is **offline** and only needs **torch**.\n\n"
+            'or `pip install -e ".[app]"`). ToyTransformer is **offline** and only needs **torch**.\n\n'
             "**Workflow:** click **Load model** and wait for the status message below **before** running Overview or other tabs "
             "(HF first-time download can take a while — that is normal, not a block)."
         )
         with gr.Row():
             backend_in = gr.Radio(
-                choices=[("Hugging Face causal LM", "hf"), ("ToyTransformer (local PyTorch)", "toy")],
+                choices=[
+                    ("Hugging Face causal LM", "hf"),
+                    ("ToyTransformer (local PyTorch)", "toy"),
+                ],
                 value="toy",
                 label="Backend",
             )
@@ -118,10 +124,13 @@ def create_app():
             try:
                 lens, _ = load_huggingface_lens(hf_name)
             except ImportError as e:
-                if "transformers" in str(e).lower() or getattr(e, "name", None) == "transformers":
+                if (
+                    "transformers" in str(e).lower()
+                    or getattr(e, "name", None) == "transformers"
+                ):
                     msg = (
                         "Missing **transformers**. Install with: `pip install transformers` "
-                        "or from the repo: `pip install -e \".[app]\"`. "
+                        'or from the repo: `pip install -e ".[app]"`. '
                         "Or switch backend to **ToyTransformer (local PyTorch)** — no download, works offline."
                     )
                 else:
@@ -138,7 +147,13 @@ def create_app():
         load_btn.click(
             _load,
             inputs=[backend_in, model_in],
-            outputs=[lens_state, load_status, model_name_state, backend_state, toy_hint],
+            outputs=[
+                lens_state,
+                load_status,
+                model_name_state,
+                backend_state,
+                toy_hint,
+            ],
         )
 
         with gr.Tabs():
@@ -182,7 +197,9 @@ def create_app():
                     "Per-module activation summaries in **execution order**. "
                     "Cap hooked modules so large HF models stay responsive."
                 )
-                prompt_fw = gr.Textbox(label="Prompt / text", value=DEFAULT_PROMPT, lines=2)
+                prompt_fw = gr.Textbox(
+                    label="Prompt / text", value=DEFAULT_PROMPT, lines=2
+                )
                 max_mod = gr.Slider(
                     20, 200, value=120, step=10, label="Max modules to hook"
                 )
@@ -230,17 +247,23 @@ def create_app():
                 gr.Markdown(
                     "_Layer / head sliders clamp to the loaded model; try 0/0 first._"
                 )
-                prompt_a = gr.Textbox(label="Prompt / text", value=DEFAULT_PROMPT, lines=2)
+                prompt_a = gr.Textbox(
+                    label="Prompt / text", value=DEFAULT_PROMPT, lines=2
+                )
                 layer_i = gr.Slider(0, 24, value=0, step=1, label="Layer index")
                 head_i = gr.Slider(0, 16, value=0, step=1, label="Head index")
                 run_a = gr.Button("Plot attention", variant="primary")
                 attn_metrics = gr.HTML()
                 fig_a = gr.Plot()
-                fig_a_entropy = gr.Plot(label="Attention entropy by head (selected layer)")
+                fig_a_entropy = gr.Plot(
+                    label="Attention entropy by head (selected layer)"
+                )
 
                 def _attn(p, li, hi, lens):
                     lens = _need_lens(lens)
-                    return _tab_err("Attention", run_attn_fig, lens, p, int(li), int(hi))
+                    return _tab_err(
+                        "Attention", run_attn_fig, lens, p, int(li), int(hi)
+                    )
 
                 run_a.click(
                     _attn,
@@ -254,7 +277,9 @@ def create_app():
                     "_Without an HF tokenizer, labels show token ids (Toy path). "
                     "Flat / low confidence is common on untrained models._"
                 )
-                prompt_l = gr.Textbox(label="Prompt / text", value=DEFAULT_PROMPT, lines=2)
+                prompt_l = gr.Textbox(
+                    label="Prompt / text", value=DEFAULT_PROMPT, lines=2
+                )
                 temp = gr.Slider(
                     minimum=0.2,
                     maximum=2.5,
@@ -333,7 +358,9 @@ def create_app():
 
             # ---- 6 Residual & embeddings ----
             with gr.Tab("6 · Residual & embeddings"):
-                prompt_re = gr.Textbox(label="Prompt / text", value=DEFAULT_PROMPT, lines=2)
+                prompt_re = gr.Textbox(
+                    label="Prompt / text", value=DEFAULT_PROMPT, lines=2
+                )
                 run_re = gr.Button("Residual stream", variant="primary")
                 run_em = gr.Button("Embedding similarity")
                 fig_re = gr.Plot(label="Residual contribution")
@@ -356,7 +383,9 @@ def create_app():
                     "Uses a **surrogate** loss (mean logits or CE on last token). "
                     "Bars = summed ‖∇‖ per module prefix (relative comparison)."
                 )
-                prompt_g = gr.Textbox(label="Prompt / text", value=DEFAULT_PROMPT, lines=2)
+                prompt_g = gr.Textbox(
+                    label="Prompt / text", value=DEFAULT_PROMPT, lines=2
+                )
                 loss_mode = gr.Radio(
                     choices=["logits_mean", "last_token_ce"],
                     value="logits_mean",
@@ -433,7 +462,9 @@ def create_app():
                     "attention shift → causal patching / recovery. "
                     "Optional **target token id** enables a minimal correctness check when you know the label."
                 )
-                cs_clean = gr.Textbox(label="Clean prompt", value=DEFAULT_PROMPT, lines=2)
+                cs_clean = gr.Textbox(
+                    label="Clean prompt", value=DEFAULT_PROMPT, lines=2
+                )
                 cs_cor = gr.Textbox(
                     label="Corrupted prompt",
                     value=DEFAULT_CORRUPTED,
@@ -446,8 +477,12 @@ def create_app():
                     step=0.1,
                     label="Output temperature (logit comparison only)",
                 )
-                cs_layer = gr.Slider(0, 24, value=0, step=1, label="Attention layer index")
-                cs_head = gr.Slider(0, 16, value=0, step=1, label="Attention head index")
+                cs_layer = gr.Slider(
+                    0, 24, value=0, step=1, label="Attention layer index"
+                )
+                cs_head = gr.Slider(
+                    0, 16, value=0, step=1, label="Attention head index"
+                )
                 cs_max_div = gr.Slider(
                     20,
                     200,
@@ -479,7 +514,9 @@ def create_app():
                 run_cs = gr.Button("Run corruption story", variant="primary")
                 cs_story = gr.HTML()
                 with gr.Row():
-                    cs_fdiv = gr.Plot(label="Divergence (top modules by cosine distance)")
+                    cs_fdiv = gr.Plot(
+                        label="Divergence (top modules by cosine distance)"
+                    )
                     cs_fdivf = gr.Plot(label="Divergence by family")
                 cs_flog = gr.Plot(label="Logit lens — clean vs corrupted")
                 with gr.Row():
@@ -564,8 +601,12 @@ def create_app():
                     value="HF-style: geography glitch",
                     label="Example preset (fills prompts)",
                 )
-                pd_clean = gr.Textbox(label="Clean input", value=DEFAULT_PROMPT, lines=2)
-                pd_cor = gr.Textbox(label="Corrupted input", value=DEFAULT_CORRUPTED, lines=2)
+                pd_clean = gr.Textbox(
+                    label="Clean input", value=DEFAULT_PROMPT, lines=2
+                )
+                pd_cor = gr.Textbox(
+                    label="Corrupted input", value=DEFAULT_CORRUPTED, lines=2
+                )
 
                 def _apply_preset(label):
                     pair = PRESENTATION_PRESETS.get(label, ("", ""))
@@ -584,7 +625,9 @@ def create_app():
                         step=0.1,
                         label="Display temperature (logit curves only)",
                     )
-                    pd_layer = gr.Slider(0, 24, value=0, step=1, label="Attention layer")
+                    pd_layer = gr.Slider(
+                        0, 24, value=0, step=1, label="Attention layer"
+                    )
                     pd_head = gr.Slider(0, 16, value=0, step=1, label="Attention head")
 
                 run_pd = gr.Button("Run presentation demo", variant="primary")
@@ -603,7 +646,9 @@ def create_app():
                     pd_f_div = gr.Plot(label="3 · Activation divergence")
                     pd_f_patch = gr.Plot(label="4 · Patching recovery (family view)")
                 with gr.Row():
-                    attn_refresh = gr.Button("Refresh attention (layer / head only)", variant="secondary")
+                    attn_refresh = gr.Button(
+                        "Refresh attention (layer / head only)", variant="secondary"
+                    )
 
                 def _pres_demo(c, r, temp, li, hi, lens):
                     lens = _need_lens(lens)
@@ -621,7 +666,14 @@ def create_app():
                 run_pd.click(
                     _pres_demo,
                     [pd_clean, pd_cor, pd_temp, pd_layer, pd_head, lens_state],
-                    [pd_banner, pd_narrative, pd_f_conf, pd_f_attn, pd_f_div, pd_f_patch],
+                    [
+                        pd_banner,
+                        pd_narrative,
+                        pd_f_conf,
+                        pd_f_attn,
+                        pd_f_div,
+                        pd_f_patch,
+                    ],
                 )
 
                 def _pres_attn_only(c, r, temp, li, hi, lens):
@@ -641,6 +693,122 @@ def create_app():
                     _pres_attn_only,
                     [pd_clean, pd_cor, pd_temp, pd_layer, pd_head, lens_state],
                     [pd_f_attn],
+                )
+
+            # ---- 11 Circuit Discovery ----
+            with gr.Tab("11 · Circuit discovery"):
+                gr.Markdown(
+                    "Automatically trace the **causal circuit** for a specific behavior. "
+                    "Combines activation patching (which components matter) with attention analysis "
+                    "(how information flows) to produce a directed graph of important components."
+                )
+                cd_clean = gr.Textbox(
+                    label="Clean prompt", value=DEFAULT_PROMPT, lines=2
+                )
+                cd_cor = gr.Textbox(
+                    label="Corrupted prompt",
+                    value=DEFAULT_CORRUPTED,
+                    lines=2,
+                )
+                cd_threshold = gr.Slider(
+                    minimum=0.1,
+                    maximum=0.8,
+                    value=0.3,
+                    step=0.05,
+                    label="Importance threshold (higher = fewer components)",
+                )
+                run_cd = gr.Button("Discover circuit", variant="primary")
+                cd_summary = gr.HTML()
+                cd_fig_nodes = gr.Plot(label="Circuit components")
+                cd_fig_edges = gr.Plot(label="Circuit connections")
+
+                def _circuit(c, r, thresh, lens):
+                    lens = _need_lens(lens)
+                    return _tab_err(
+                        "Circuit discovery",
+                        run_circuit_discovery_fig,
+                        lens,
+                        c,
+                        r,
+                        float(thresh),
+                    )
+
+                run_cd.click(
+                    _circuit,
+                    [cd_clean, cd_cor, cd_threshold, lens_state],
+                    [cd_summary, cd_fig_nodes, cd_fig_edges],
+                )
+
+            # ---- 12 Batch Patching ----
+            with gr.Tab("12 · Batch patching"):
+                gr.Markdown(
+                    "Run activation patching over **multiple prompt pairs** to find components that are "
+                    "**consistently** important, not just important for one example. "
+                    "Paste a JSON array of `[clean, corrupted]` pairs."
+                )
+                bp_json = gr.Textbox(
+                    label="JSON array of [clean, corrupted] pairs",
+                    lines=8,
+                    value='[\n  ["The capital of France is", "The MX of France is"],\n  ["The capital of Germany is", "The MX of Germany is"],\n  ["The capital of Italy is", "The MX of Italy is"]\n]',
+                )
+                run_bp = gr.Button("Run batch patching", variant="primary")
+                bp_summary = gr.HTML()
+                bp_fig = gr.Plot(label="Aggregated importance (color = consistency)")
+
+                def _batch(j, lens):
+                    lens = _need_lens(lens)
+                    return _tab_err(
+                        "Batch patching",
+                        run_batch_patching_fig,
+                        lens,
+                        j,
+                    )
+
+                run_bp.click(
+                    _batch,
+                    [bp_json, lens_state],
+                    [bp_summary, bp_fig],
+                )
+
+            # ---- 13 Layer Evolution ----
+            with gr.Tab("13 · Layer evolution"):
+                gr.Markdown(
+                    "Track how the model's **prediction distribution evolves** across layers. "
+                    "See which tokens rise and fall, where the model first becomes confident, "
+                    "and where the biggest distribution shifts happen."
+                )
+                le_prompt = gr.Textbox(label="Prompt", value=DEFAULT_PROMPT, lines=2)
+                le_top_k = gr.Slider(
+                    minimum=5,
+                    maximum=20,
+                    value=10,
+                    step=1,
+                    label="Top-K tokens to track",
+                )
+                le_blocks = gr.Checkbox(
+                    label="Block-level only (cleaner view)",
+                    value=True,
+                )
+                run_le = gr.Button("Run layer evolution", variant="primary")
+                le_summary = gr.HTML()
+                le_fig_conf = gr.Plot(label="Confidence + entropy trajectory")
+                le_fig_tokens = gr.Plot(label="Token probability trajectories")
+
+                def _evolution(p, k, blocks, lens):
+                    lens = _need_lens(lens)
+                    return _tab_err(
+                        "Layer evolution",
+                        run_layer_evolution_fig,
+                        lens,
+                        p,
+                        int(k),
+                        bool(blocks),
+                    )
+
+                run_le.click(
+                    _evolution,
+                    [le_prompt, le_top_k, le_blocks, lens_state],
+                    [le_summary, le_fig_conf, le_fig_tokens],
                 )
 
         gr.Markdown(

@@ -1,17 +1,63 @@
 """Logit lens evolution charts from ``run_logit_lens`` outputs."""
 
 from __future__ import annotations
-
 from typing import Any, Dict, List, Optional
-
 import numpy as np
-
 from modellens.visualization.common import default_plotly_layout, truncate_label
 
 try:
     import plotly.graph_objects as go
 except ImportError as e:  # pragma: no cover
     raise ImportError("plotly is required; pip install plotly") from e
+
+# ── Layer filtering helpers ──────────────────────────────────────────
+LAYER_FILTERS = {
+    "blocks": lambda name: _is_block_level(name),
+    "attn": lambda name: "attn" in name and "." not in name.split("attn")[-1],
+    "mlp": lambda name: "mlp" in name and "." not in name.split("mlp")[-1],
+    "all": lambda name: True,
+}
+
+
+def _is_block_level(name: str) -> bool:
+    """
+    Keep only top-level block layers like 'transformer.h.0', 'blocks.1'.
+    Filters out sublayers like 'transformer.h.0.attn.c_proj'.
+    """
+    parts = name.split(".")
+    # Pattern: transformer.h.N or blocks.N (3 or 2 parts, last is a digit)
+    if len(parts) <= 3 and parts[-1].isdigit():
+        return True
+    # Also keep wte/wpe/ln_f (embedding and final norm)
+    if any(k in name for k in ["wte", "wpe", "ln_f", "lm_head"]):
+        return True
+    return False
+
+
+def _filter_layers(layers, toks, probs, layer_filter="blocks"):
+    """Filter layers, toks, probs lists by the chosen filter."""
+    fn = LAYER_FILTERS.get(layer_filter, LAYER_FILTERS["blocks"])
+    filtered = [(l, t, p) for l, t, p in zip(layers, toks, probs) if fn(l)]
+    if not filtered:
+        # Fallback to all if filter removes everything
+        return layers, toks, probs
+    return zip(*filtered)
+
+
+def _decode_token_ids(token_ids: List[str], tokenizer=None) -> List[str]:
+    """
+    Convert token ID strings back to readable tokens.
+    Falls back to raw IDs if no tokenizer is available.
+    """
+    if tokenizer is None:
+        return token_ids
+    decoded = []
+    for tid in token_ids:
+        try:
+            decoded.append(tokenizer.convert_ids_to_tokens([tid])[0] or tid)
+        except (ValueError, KeyError):
+            decoded.append(tid)
+    return decoded
 
 
 def _layers_and_top(
@@ -43,18 +89,15 @@ def plot_logit_lens_evolution(
     logit_lens_result: Dict[str, Any],
     *,
     rank_index: int = 0,
+    layer_filter: str = "blocks",
     title: Optional[str] = None,
     width: int = 900,
     height: int = 520,
 ) -> "go.Figure":
-    """
-    Line chart: probability of the *rank_index*-th predicted token at each layer.
-
-    rank_index 0 follows the top-1 candidate's probability through layers.
-    """
+    """Line chart of top-token probability across layers."""
     layers, _, probs = _layers_and_top(logit_lens_result)
-    if not layers:
-        raise ValueError("No layer data for logit lens plot")
+    layers, _, probs = _filter_layers(layers, _, probs, layer_filter)
+    layers, probs = list(layers), list(probs)
 
     x = [truncate_label(L.replace(".", " / "), max_len=40) for L in layers]
     y = [p[rank_index] if rank_index < len(p) else float("nan") for p in probs]
@@ -80,14 +123,16 @@ def plot_logit_lens_heatmap(
     logit_lens_result: Dict[str, Any],
     *,
     top_ranks: int = 5,
+    layer_filter: str = "blocks",
     title: Optional[str] = None,
     width: int = 900,
     height: int = 560,
 ) -> "go.Figure":
-    """
-    Heatmap: layers × rank slot (1..K) showing probability mass for top-k predictions.
-    """
+    """Heatmap of top-k probabilities across layers."""
     layers, _, probs = _layers_and_top(logit_lens_result)
+    layers, _, probs = _filter_layers(layers, _, probs, layer_filter)
+    layers, probs = list(layers), list(probs)
+
     k = min(top_ranks, len(probs[0]) if probs else 0)
     if k == 0:
         raise ValueError("No probability rows")
@@ -114,17 +159,31 @@ def plot_logit_lens_top_token_bars(
     logit_lens_result: Dict[str, Any],
     *,
     layer_index: int = -1,
+    decoded: Optional[Dict] = None,
     title: Optional[str] = None,
     width: int = 800,
     height: int = 480,
 ) -> "go.Figure":
-    """Horizontal bar chart of top-k tokens at one layer (default: last)."""
+    """Horizontal bar chart of top-k tokens at one layer, decoded to text.
+
+    If `decoded` is provided (output of decode_logit_lens), uses those
+    human-readable token labels. Otherwise falls back to raw IDs.
+    """
     layers, toks, probs = _layers_and_top(logit_lens_result)
     if not layers:
         raise ValueError("No layers")
+
     li = layer_index if layer_index >= 0 else len(layers) - 1
-    labels = toks[li]
-    p = probs[li]
+    layer_name = layers[li]
+
+    # Use decoded dict if available
+    if decoded and layer_name in decoded:
+        pairs = decoded[layer_name]  # list of (token_str, prob)
+        labels = [tok for tok, _ in pairs]
+        p = [prob for _, prob in pairs]
+    else:
+        labels = toks[li]
+        p = probs[li]
 
     fig = go.Figure(
         go.Bar(
@@ -136,6 +195,6 @@ def plot_logit_lens_top_token_bars(
         )
     )
     fig.update_xaxes(title_text="Probability", range=[0, 1.05])
-    t = title or f"Top-k at layer — {truncate_label(layers[li], 48)}"
+    t = title or f"Top-k at layer — {truncate_label(layer_name, 48)}"
     fig.update_layout(**default_plotly_layout(title=t, width=width, height=height))
     return fig

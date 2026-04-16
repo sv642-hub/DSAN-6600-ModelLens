@@ -109,7 +109,9 @@ class ModelLens:
 
         return run_attention_analysis(self, inputs, **kwargs)
 
-    def activation_patch(self, clean_input, corrupted_input, layer_names=None, **kwargs):
+    def activation_patch(
+        self, clean_input, corrupted_input, layer_names=None, **kwargs
+    ):
         """Run activation patching analysis."""
         from modellens.analysis.activation_patching import run_activation_patching
 
@@ -152,6 +154,24 @@ class ModelLens:
         from modellens.analysis.divergence import run_activation_divergence
 
         return run_activation_divergence(self, clean_input, corrupted_input, **kwargs)
+
+    def circuit_discovery(self, clean_input, corrupted_input, **kwargs):
+        """Discover the causal circuit for a specific behavior."""
+        from modellens.analysis.circuit_discovery import discover_circuit
+
+        return discover_circuit(self, clean_input, corrupted_input, **kwargs)
+
+    def batch_patching(self, input_pairs, **kwargs):
+        """Run activation patching over multiple input pairs and aggregate."""
+        from modellens.analysis.batch_patching import run_batch_patching
+
+        return run_batch_patching(self, input_pairs, **kwargs)
+
+    def layer_evolution(self, inputs, **kwargs):
+        """Track how predictions evolve across layers."""
+        from modellens.analysis.layer_evolution import run_layer_evolution
+
+        return run_layer_evolution(self, inputs, **kwargs)
 
     # ---- Cleanup ----
     def clear(self) -> None:

@@ -67,25 +67,33 @@ def plot_shape_trace_table(
     shapes = [str(r["shape"]) for r in rows]
     dtypes = [r["dtype"] for r in rows]
 
+    # Alternating row colors for readability
+    row_colors = [["#1e293b", "#0f172a"] * ((len(modules) + 1) // 2)]
+
     fig = go.Figure(
         data=[
             go.Table(
                 header=dict(
                     values=["Module", "Shape", "dtype"],
-                    fill_color="#1e293b",
-                    font=dict(color="white", size=12),
+                    fill_color="#0f172a",
+                    font=dict(color="#e2e8f0", size=12),
+                    line_color="#334155",
                     align="left",
                 ),
                 cells=dict(
                     values=[modules, shapes, dtypes],
-                    fill_color="#f8fafc",
+                    fill_color=row_colors,
+                    font=dict(color="#cbd5e1", size=11),
+                    line_color="#334155",
                     align="left",
-                    font=dict(size=11),
                 ),
             )
         ]
     )
-    fig.update_layout(**default_plotly_layout(title=title, width=width, height=height))
+    fig.update_layout(
+        **default_plotly_layout(title=title, width=width, height=height),
+        paper_bgcolor="rgba(0,0,0,0)",
+    )
     return fig
 
 

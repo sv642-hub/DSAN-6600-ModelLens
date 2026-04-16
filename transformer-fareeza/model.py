@@ -46,9 +46,11 @@ class TransformerBlock(nn.Module):
             diagonal=1,
         )
         attn_out, _ = self.attn(
-            normed, normed, normed,
+            normed,
+            normed,
+            normed,
             attn_mask=causal_mask,
-            need_weights=False,
+            need_weights=True,
         )
         x = x + attn_out
 
@@ -82,10 +84,9 @@ class ArithmeticTransformer(nn.Module):
         self.embed = nn.Embedding(vocab_size, hidden_dim)
         self.pos_embed = nn.Embedding(max_seq_len, hidden_dim)
 
-        self.blocks = nn.ModuleList([
-            TransformerBlock(hidden_dim, num_heads)
-            for _ in range(num_layers)
-        ])
+        self.blocks = nn.ModuleList(
+            [TransformerBlock(hidden_dim, num_heads) for _ in range(num_layers)]
+        )
 
         self.ln_f = nn.LayerNorm(hidden_dim)
         self.unembed = nn.Linear(hidden_dim, vocab_size, bias=False)
@@ -129,7 +130,7 @@ if __name__ == "__main__":
     print(f"Output shape: {output.shape}")
     print(f"(Expected output: (batch, seq_len, vocab_size) = (2, 16, {VOCAB_SIZE}))")
     print()
- 
+
     # Show the named submodules — useful for verifying ModelLens compatibility later.
     print("Named modules:")
     for name, _ in model.named_modules():

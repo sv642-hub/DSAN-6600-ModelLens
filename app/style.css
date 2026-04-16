@@ -1,0 +1,72 @@
+/* ══════════════════════════════════════════════════════════════
+   ModelLens — Global Styles
+   ══════════════════════════════════════════════════════════════ */
+
+/* ── Gradient background ── */
+.stApp {
+    background: linear-gradient(135deg, #1a1f2e 0%, #2a3326 50%, #1a1f2e 100%) !important;
+}
+
+/* ── Top bar matches gradient ── */
+header[data-testid="stHeader"] {
+    background: transparent !important;
+}
+
+/* ── Chat input bar matches ── */
+/* ── Chat input styling ── */
+div[data-testid="stBottom"] > div {
+    background: linear-gradient(90deg, #1a1f2e 0%, #2a3326 50%, #1a1f2e 100%) !important;
+}
+
+div[data-testid="stChatInput"] {
+    background: transparent !important;
+}
+
+div[data-testid="stChatInput"] textarea {
+    background: transparent !important;
+    color: #e8f0e8 !important;
+    border: none !important;
+}
+
+div[data-testid="stChatInput"] textarea::placeholder {
+    color: rgba(232, 240, 232, 0.5) !important;
+}
+
+div[data-testid="stBottom"] {
+    background: transparent !important;
+}
+
+div[data-testid="stBottom"] > div {
+    background: transparent !important;
+}
+
+/* ── Bigger pills ── */
+div[data-testid="stPills"] button {
+    padding: 12px 28px !important;
+    font-size: 1.15rem !important;
+    background-color: #1e293b !important;
+    color: #e2e8f0 !important;
+    border: 1px solid #334155 !important;
+    border-radius: 24px !important;
+}
+
+div[data-testid="stPills"] button[aria-checked="true"] {
+    background-color: #2563eb !important;
+    color: #ffffff !important;
+    border-color: #2563eb !important;
+}
+
+/* ── Tighter sidebar spacing ── */
+section[data-testid="stSidebar"] .block-container {
+    padding-top: 1rem;
+}
+
+/* ── Cleaner popover button ── */
+div[data-testid="stPopover"] button {
+    font-size: 0.9rem;
+}
+
+/* ── Plotly charts flush with container ── */
+div[data-testid="stPlotlyChart"] {
+    width: 100%;
+}
