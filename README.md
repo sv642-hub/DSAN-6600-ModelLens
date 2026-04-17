@@ -11,7 +11,7 @@ An open-source interpretability toolkit for PyTorch neural networks. ModelLens p
 - **Embeddings Inspection** — Analyze input embedding representations and token similarity
 - **Residual Stream Analysis** — Trace information flow through skip connections and measure per-layer contributions
 - **Visualization** — Plotly-based figures (heatmaps, trajectories, patching bars, shape traces) for notebooks and slides
-- **Gradio App** — Guided multi-tab explorer plus a one-click “presentation story” mode
+- **Streamlit App** — Guided multi-tab explorer
 
 ## Supported Backends
 
@@ -26,7 +26,7 @@ cd modellens
 pip install -e .
 ```
 
-Visualization (Plotly, pandas) and the web app (Gradio):
+Visualization (Plotly, pandas) and the web app (Streamlit):
 
 ```bash
 pip install -e ".[viz,app]"
@@ -84,12 +84,12 @@ Quick script (writes `viz_out/*.html`):
 python examples/quick_viz_demo.py --out ./viz_out
 ```
 
-## Gradio App
+## Streamlit App
 
 After `pip install -e ".[app]"`:
 
 ```bash
-modellens-gradio
+modellens-streamlit
 # or
 python -m app.main
 ```
@@ -160,7 +160,7 @@ modellens/
 │   ├── adapters/        # HuggingFace and PyTorch adapters
 │   ├── analysis/        # Interpretability routines
 │   └── visualization/   # Plotly helpers + shared styling
-app/                     # Gradio presentation shell (main.py, components.py, demo_data.py)
+app/                     # Streamlit presentation shell (main.py, components.py, demo_data.py)
 examples/                # Notebooks and quick_viz_demo.py
 ```
 
