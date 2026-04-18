@@ -11,11 +11,11 @@ class TransformerJeff(nn.Module):
         self.ln2 = nn.LayerNorm(d_model)
         self.mlp = nn.Sequential(nn.Linear(d_model, d_mlp), nn.GELU(), nn.Linear(d_mlp, d_model))
     def forward(self,x):
-        Jeff = self.ln1(x)
-        attn_out, weights = self.attn(Jeff, Jeff, Jeff)
+        normed = self.ln1(x)
+        attn_out, weights = self.attn(normed, normed, normed)
         x = x + attn_out
-        Sebastian = self.ln2(x)
-        x = x + self.mlp(Sebastian)
+        normed2 = self.ln2(x)
+        x = x + self.mlp(normed2)
         return x
 
 
@@ -35,58 +35,8 @@ class InterpretationModel(nn.Module):
         for block in self.blocks:
             x = block(x)
         return self.unembed(self.ln_f(x))
-
-def generate_bracket_data(num_samples, seq_len):
-        data = []
-        for _ in range(num_samples):
-            seq = []
-            depth = 0
-            for _ in range(seq_len):
-                if depth == 0 or torch.rand(1) > 0.5:
-                    seq.append(0)
-                    depth +=1
-                else:
-                    seq.append(1)
-                    depth -=1
-            data.append(torch.tensor(seq))
-        return torch.stack(data)
     
-def train_model(epochs=None):
-    if epochs is None:
-        epochs = input("How many Epochs should be used to train the model?:")
-        epochs = int(epochs)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = InterpretationModel(vocab_size=3).to(device)
-    optimizer = torch.optim.AdamW(model.parameters(), lr = 1e-3)
-    criterion = nn.CrossEntropyLoss()
-    print("Starting Training for Backet Matching...")
-    for epoch in range(epochs): 
-        inputs = generate_bracket_data(64, 20).to(device)
-        targets = torch.roll(inputs, shifts =-1, dims = 1)
-        optimizer.zero_grad()
-        logits = model(inputs)
-        loss = criterion(logits.view(-1,3), targets.view(-1))
-        loss.backward()
-        optimizer.step()
-        if epoch % 2 == 0:
-            print(f"Epoch {epoch} | Loss: {loss.item():.4f}")
-    save_path = "trained_transformer_jeff.pth"
-    torch.save({
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'epochs_trained': epochs,
-        'final_loss': loss.item(),
-        'vocab_size': 3,
-        'd_model': 64,
-        'n_head': 4,
-        'n_layers': 4
-    }, save_path)
-    
-    print(f"Model saved to {save_path}")
-    return model
 
-if __name__ == "__main__":
-    train_model()
 
 
 
