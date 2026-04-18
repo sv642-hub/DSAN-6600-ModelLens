@@ -101,8 +101,8 @@ def load_imdb_subset(train_size: int = 5000, test_size: int = 1000, seed: int = 
     """
 
     try:
-        from datasets import load_dataset  # type: ignore
-    except Exception as e:  # pragma: no cover
+        from datasets import load_dataset  
+    except Exception as e:  
         raise RuntimeError(
             "Hugging Face `datasets` is required for IMDB loading. "
             "Install with `pip install datasets`."

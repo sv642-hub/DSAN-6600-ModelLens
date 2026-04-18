@@ -1,19 +1,17 @@
-"""transformer-sharanya/predict.py
-
-Load a trained checkpoint and run sentiment predictions.
-
-Usage:
-  python predict.py "this movie was great"
-"""
-
 from __future__ import annotations
 
 import sys
 
 import torch
 
-from data import Vocab, encode
-from model import SentimentTransformer
+try:
+    # When run as a module: python -m transformer_sharanya.predict
+    from .data import Vocab, encode
+    from .model import SentimentTransformer
+except ImportError:  # pragma: no cover
+    # When run as a script: python transformer_sharanya/predict.py
+    from data import Vocab, encode
+    from model import SentimentTransformer
 
 
 def load_checkpoint(path: str = "trained_sentiment_transformer_sharanya.pt"):

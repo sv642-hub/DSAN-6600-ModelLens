@@ -1,13 +1,3 @@
-"""transformer-sharanya/train.py
-
-Training loop for the sentiment Transformer.
-
-- By default tries to train on a small IMDB subset (requires `datasets`).
-- Falls back to a tiny built-in toy dataset if IMDB isn't available.
-
-Saves model checkpoint to `trained_sentiment_transformer_sharanya.pt`.
-"""
-
 from __future__ import annotations
 
 import time
@@ -16,8 +6,14 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from data import SentimentDataset, build_vocab, load_imdb_subset, load_toy_sentiment
-from model import SentimentTransformer
+try:
+    # When run as a module: python -m transformer_sharanya.train
+    from .data import SentimentDataset, build_vocab, load_imdb_subset, load_toy_sentiment
+    from .model import SentimentTransformer
+except ImportError:  # pragma: no cover
+    # When run as a script: python transformer_sharanya/train.py
+    from data import SentimentDataset, build_vocab, load_imdb_subset, load_toy_sentiment
+    from model import SentimentTransformer
 
 
 @torch.no_grad()
