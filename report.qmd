@@ -1,0 +1,498 @@
+---
+title: "ModelLens: A General-Purpose Mechanistic Interpretability Toolkit for PyTorch Neural Networks"
+author:
+  - name: "Team Member 2"
+    affiliations:
+      - name: "Georgetown University"  # UPDATE with your actual university
+  - name: "Team Member 2"
+    affiliations:
+      - name: "Georgetown University"
+  - name: "Team Member 3"
+    affiliations:
+      - name: "Georgetown University"
+  - name: "Team Member 4"
+    affiliations:
+      - name: "Georgetown University"
+  - name: "Team Member 5"
+    affiliations:
+      - name: "Georgetown University"
+date: today
+abstract: |
+  Understanding the internal mechanisms of neural networks is critical for
+  ensuring safety, enabling debugging, and advancing scientific insight into
+  learned representations. We present ModelLens, an open-source Python toolkit
+  that brings mechanistic interpretability techniques to arbitrary PyTorch
+  models. Unlike existing tools such as TransformerLens, which is restricted
+  to transformer architectures, or Captum, which focuses on attribution rather
+  than mechanistic analysis, ModelLens provides architecture-agnostic support
+  for logit lens projection, activation patching, attention visualization,
+  residual stream analysis, and embedding inspection through a unified
+  forward-hook-based infrastructure. We validate the toolkit by training a
+  small transformer on three-digit addition and using ModelLens to
+  reverse-engineer the learned algorithm, recovering interpretable structure
+  consistent with prior findings in the mechanistic interpretability
+  literature. We further demonstrate generalizability by applying ModelLens
+  to pretrained HuggingFace models. A Gradio-based web interface enables
+  interactive exploration without requiring users to write code. The toolkit
+  and all experimental artifacts are publicly available.
+keywords:
+  - mechanistic interpretability
+  - neural network analysis
+  - transformer circuits
+  - activation patching
+  - logit lens
+format:
+  pdf:
+    documentclass: article
+    number-sections: true
+    geometry:
+      - margin=1in
+    fontsize: 11pt
+    linestretch: 1.5          # ~ double-spaced for draft review
+    link-citations: true
+    colorlinks: true
+    fig-pos: "htbp"
+  html:
+    toc: true
+    toc-depth: 3
+    number-sections: true
+    code-fold: true           # lets readers expand/collapse code blocks
+bibliography: references.bib
+csl: ieee.csl                # CHANGE this to match your target venue style
+                              # e.g., apa.csl, acm-sig-proceedings.csl
+                              # download CSL files from https://www.zotero.org/styles
+---
+
+<!-- ============================================================
+     HOW TO USE THIS TEMPLATE
+     ============================================================
+     1. Install Quarto: https://quarto.org/docs/get-started/
+     2. Place this file and references.bib in the same folder
+     3. Download a CSL style file if needed (or remove the csl: line
+        to use the default Chicago style)
+     4. Render:  quarto render report.qmd
+     5. Inline citations:  [@nanda2023progress] or [@meng2022locating]
+        Multiple:  [@nanda2023progress; @elhage2021mathematical]
+        Parenthetical with page: [@vaswani2017attention, p. 3]
+     ============================================================ -->
+
+
+# Introduction
+
+<!-- ~1.5 pages. Frame the problem, state contributions. -->
+
+Modern neural networks achieve strong performance across a wide range of
+tasks, yet their internal decision-making processes remain largely opaque.
+This opacity poses challenges for debugging unexpected model behavior,
+auditing models for regulatory compliance, conducting AI safety research,
+and advancing scientific understanding of learned representations
+[@olah2020zoom].
+
+The field of *mechanistic interpretability* seeks to address this gap by
+treating trained networks as objects of scientific study—reverse-engineering
+the algorithms they learn by inspecting, visualizing, and intervening on
+internal computations [@elhage2021mathematical]. Several tools exist to
+support this work, but each has significant limitations. TransformerLens
+[@nanda2022transformerlens] provides rich mechanistic analysis capabilities
+but is restricted to transformer architectures. Captum [@kokhlikyan2020captum]
+supports arbitrary PyTorch models but focuses on gradient-based attribution
+methods rather than the causal and representational analyses central to
+mechanistic interpretability.
+
+In this paper, we present **ModelLens**, an open-source Python toolkit that
+bridges this gap. ModelLens provides architecture-agnostic mechanistic
+interpretability through a unified forward-hook-based infrastructure,
+supporting logit lens projection, activation patching, attention
+visualization, residual stream analysis, and embedding inspection for any
+PyTorch model.
+
+Our contributions are as follows:
+
+1. **A general-purpose interpretability toolkit** that applies mechanistic
+   analysis techniques to arbitrary `nn.Module` and HuggingFace
+   `PreTrainedModel` architectures through a backend-adapter design pattern.
+2. **A validation study** in which we train a small transformer on three-digit
+   addition, achieve approximately 93% accuracy, and use ModelLens to
+   reverse-engineer the learned algorithm.
+3. **A Gradio-based web interface** that makes mechanistic interpretability
+   accessible to users without programming experience.
+
+<!-- TODO: Add a sentence about the paper's structure if your professor
+     expects a "roadmap" paragraph. -->
+
+
+# Related Work {#sec-related-work}
+
+<!-- ~2 pages. Group by theme, not chronologically. Cite heavily. -->
+
+## Mechanistic Interpretability
+
+The circuits-based approach to interpretability, pioneered by @olah2020zoom,
+treats neural network components as implementing identifiable algorithms.
+@elhage2021mathematical formalized this perspective for transformers,
+introducing the *residual stream* view in which attention heads and MLP layers
+read from and write to a shared representational space. @olsson2022context
+extended this framework by identifying *induction heads*—a specific circuit
+motif responsible for in-context learning. @elhage2022toy further explored how
+networks represent multiple features in superposition within this framework.
+
+## Logit Lens and Intermediate Predictions
+
+The logit lens technique, introduced by @nostalgebraist2020logitlens, projects
+intermediate layer activations through a model's final unembedding matrix to
+observe how predictions evolve across layers. @belrose2023eliciting refined
+this approach with the *tuned lens*, which learns an affine transformation at
+each layer to produce better-calibrated intermediate predictions.
+
+## Activation Patching and Causal Analysis
+
+Activation patching—systematically replacing activations from one forward pass
+with those from another to measure causal effects—was formalized by
+@meng2022locating in their work on locating factual associations in GPT.
+Related causal mediation approaches were applied by @vig2020investigating to
+study gender bias. @conmy2023automated developed automated circuit discovery
+(ACDC), which scales activation patching to identify minimal circuits
+responsible for specific behaviors.
+
+## Attention Analysis
+
+@clark2019what provided an early systematic analysis of attention patterns in
+BERT. The relationship between attention weights and model behavior has been
+debated: @jain2019attention argued that attention does not constitute
+explanation, while @wiegreffe2019attention demonstrated conditions under which
+attention patterns do carry explanatory value. This debate motivates the
+inclusion of *both* attention visualization and causal methods (activation
+patching) in ModelLens.
+
+## Modular Arithmetic and Algorithmic Interpretability
+
+Small transformers trained on algorithmic tasks provide valuable test cases
+for interpretability because the learned algorithms can be independently
+verified. @nanda2023progress showed that transformers trained on modular
+addition learn trigonometric representations, and used this finding to develop
+*progress measures* that track the formation of generalizing circuits during
+training. @power2022grokking first described the *grokking* phenomenon—delayed
+generalization long after memorization—on such tasks. @nogueira2021investigating
+studied the limitations of transformers on simple arithmetic, providing context
+for our choice of three-digit addition as a demonstration task.
+
+## Existing Tools
+
+**TransformerLens** [@nanda2022transformerlens] is the most widely used
+mechanistic interpretability library. It provides activation caching, hook
+points, and direct logit attribution but requires models to conform to its
+internal `HookedTransformer` architecture.
+
+**Captum** [@kokhlikyan2020captum] is a general-purpose interpretability
+library for PyTorch that supports integrated gradients, SHAP, and other
+attribution methods. However, it does not provide mechanistic techniques
+such as logit lens or activation patching.
+
+ModelLens occupies a distinct position: it combines the mechanistic analysis
+depth of TransformerLens with the architectural flexibility of Captum.
+
+
+# System Design and Architecture {#sec-system-design}
+
+<!-- ~3 pages. This is YOUR technical contribution. Be precise. -->
+
+## Design Goals
+
+ModelLens was designed around four principles:
+
+1. **Architecture agnosticism.** The toolkit should work with any PyTorch
+   `nn.Module` without requiring architectural modifications.
+2. **Minimal user configuration.** Users should be able to wrap a model and
+   begin analysis in two lines of code.
+3. **Extensibility.** New analysis techniques should be addable without
+   modifying the core infrastructure.
+4. **Accessibility.** A web-based interface should expose all analyses to
+   non-programmers.
+
+## Core Infrastructure: Hook-Based Activation Caching
+
+The foundation of ModelLens is PyTorch's forward hook system
+[@paszke2019pytorch]. When `model.register_forward_hook(fn)` is called on a
+module, the provided function receives the module's input and output tensors
+during every forward pass. ModelLens registers hooks at every layer of
+interest, caching intermediate activations in a dictionary keyed by layer
+name.
+
+<!-- TODO: Insert a code listing or pseudocode block here showing the
+     hook registration pattern with the closure for correct scoping.
+     Example:
+
+```python
+cache = {}
+def make_hook(name):
+    def hook_fn(module, input, output):
+        cache[name] = output.detach()
+    return hook_fn
+for name, module in model.named_modules():
+    module.register_forward_hook(make_hook(name))
+```
+-->
+
+The closure-based design ensures correct scoping: without the inner function
+factory, all hooks would overwrite the same dictionary key due to Python's
+late-binding behavior in loops.
+
+## Backend Adapters
+
+ModelLens supports two model backends through an adapter pattern:
+
+- **PyTorch adapter** for vanilla `nn.Module` models. It uses
+  `named_modules()` to discover layers and infers layer types from module
+  class names.
+- **HuggingFace adapter** for `PreTrainedModel` architectures. It leverages
+  the standardized naming conventions in HuggingFace models (e.g.,
+  `model.transformer.h[i]`) to identify attention heads, MLP blocks, and
+  layer norms.
+
+<!-- TODO: Consider adding an architecture diagram (Figure 1) showing the
+     relationship between ModelLens, adapters, analysis modules, and the
+     Gradio UI. -->
+
+## Analysis Modules
+
+### Logit Lens
+
+The logit lens module projects the hidden state $h_l$ at layer $l$ through
+the model's final layer normalization and unembedding matrix $W_U$ to produce
+a distribution over the vocabulary at each intermediate layer:
+
+$$p_l = \text{softmax}(W_U \cdot \text{LayerNorm}(h_l))$$
+
+This reveals how the model's "beliefs" about the output token evolve as
+information flows through the network.
+
+### Activation Patching
+
+Given a *clean* input $x_c$ and a *corrupted* input $x_p$, activation
+patching measures the causal importance of a component $C$ at layer $l$ by:
+
+1. Running the model on $x_c$ to cache all activations.
+2. Running the model on $x_p$, but replacing the activation at component $C$,
+   layer $l$ with the cached clean activation.
+3. Measuring how much the output shifts back toward the clean output.
+
+Formally, the patching effect for component $C$ at layer $l$ is:
+
+$$\Delta_{C,l} = \mathcal{L}(x_p) - \mathcal{L}(x_p \mid h_{C,l} \leftarrow h_{C,l}^{\text{clean}})$$
+
+where $\mathcal{L}$ is the loss function. Large values indicate that
+component $C$ at layer $l$ is causally important for the behavior of interest.
+
+### Attention Visualization
+
+<!-- TODO: Describe your attention extraction and visualization approach.
+     Address the attention-as-explanation debate (Jain vs Wiegreffe). -->
+
+### Residual Stream Analysis
+
+<!-- TODO: Describe how you decompose the residual stream into per-layer
+     contributions and measure each layer's impact on the final output. -->
+
+### Embedding Inspection
+
+<!-- TODO: Describe your tools for inspecting input/output embedding spaces,
+     including any dimensionality reduction for visualization. -->
+
+## Gradio Interface
+
+<!-- TODO: Describe the web interface design, what controls are exposed
+     (model selection, input data, layer selection, analysis type),
+     and include a screenshot (Figure 2). -->
+
+
+# Demonstration: Arithmetic Transformer {#sec-demonstration}
+
+<!-- ~2 pages. Describe the model and training. -->
+
+## Task Definition
+
+We train a small transformer to perform three-digit addition (e.g.,
+$123 + 456 = 579$). Inputs are tokenized as sequences of individual digits
+with operator and equals-sign delimiters. This task was chosen because:
+
+- The correct algorithm (carry-propagation) is fully known, enabling
+  verification of interpretability findings.
+- The model is small enough to analyze exhaustively.
+- Prior work on arithmetic in transformers [@nogueira2021investigating]
+  provides baseline expectations.
+
+## Model Architecture
+
+<!-- TODO: Fill in your actual hyperparameters from ArithmeticTransformer -->
+
+The `ArithmeticTransformer` consists of:
+
+| Hyperparameter       | Value          |
+|-----------------------|---------------|
+| Embedding dimension   | <!-- TODO --> |
+| Number of layers      | <!-- TODO --> |
+| Attention heads       | <!-- TODO --> |
+| MLP hidden dimension  | <!-- TODO --> |
+| Vocabulary size       | <!-- TODO --> |
+| Max sequence length   | <!-- TODO --> |
+| Total parameters      | ~808,704      |
+
+The model uses learned positional embeddings, pre-norm layer normalization,
+GELU activations in the MLP blocks, and a causal attention mask to enforce
+autoregressive generation of the output digits.
+
+## Training
+
+<!-- TODO: Fill in training details -->
+
+The model was trained using:
+
+- **Optimizer:** AdamW with learning rate <!-- TODO -->
+- **Loss function:** Cross-entropy with masking (loss computed only on output
+  digit positions)
+- **Training data:** Randomly generated addition problems
+- **Training duration:** <!-- TODO epochs/steps -->
+- **Final accuracy:** Approximately 93% on held-out test problems
+
+<!-- TODO: Include a training loss curve (Figure 3). -->
+
+
+# Interpretability Results {#sec-results}
+
+<!-- ~3-4 pages. This is the core scientific contribution. Show figures. -->
+
+## Logit Lens Analysis
+
+<!-- TODO: Present logit lens results as a heatmap (Figure 4) showing how
+     the model's prediction for each output digit evolves across layers.
+     Key questions to address:
+     - At which layer does the model "decide" on the correct output digit?
+     - Does carry resolution happen at a specific layer?
+     - Do different digit positions resolve at different layers? -->
+
+## Attention Patterns
+
+<!-- TODO: Present attention maps (Figure 5) for representative inputs.
+     Key questions:
+     - Do attention heads learn to attend to specific operand positions?
+     - Is there a head that specializes in carry detection?
+     - How do patterns differ for problems with vs. without carries? -->
+
+## Activation Patching
+
+<!-- TODO: Present a patching heatmap (Figure 6) showing which
+     layers/components are causally important.
+     Key questions:
+     - Which layers are critical for carry propagation?
+     - Are there identifiable "circuits" for addition vs. carry? -->
+
+## Residual Stream Decomposition
+
+<!-- TODO: Show per-layer contributions to the final logits.
+     Does each layer add a specific piece of the computation? -->
+
+## Comparison with Prior Work
+
+<!-- TODO: Compare your findings to Nanda et al.'s results on modular
+     arithmetic. Do you see analogous structure (e.g., trigonometric
+     representations, or in this case, digit-position-specific circuits)?
+     Be honest about what aligns and what differs. -->
+
+
+# Generalizability {#sec-generalizability}
+
+<!-- ~1-1.5 pages. Show ModelLens works beyond the demo model. -->
+
+## Application to Pretrained Models
+
+<!-- TODO: Show ModelLens applied to GPT-2 or another HuggingFace model.
+     Present at least one analysis (e.g., logit lens on a text completion
+     task) and demonstrate that the same API works across backends. -->
+
+## Comparison with TransformerLens
+
+<!-- TODO: For the same analysis on a HuggingFace model, compare the
+     user experience (lines of code, setup required, flexibility) between
+     ModelLens and TransformerLens. Be fair — note where TransformerLens
+     is more polished or feature-rich. -->
+
+## Limitations Discovered During Generalization
+
+<!-- TODO: Be honest about edge cases, models that didn't work well,
+     or analyses that required backend-specific adjustments. -->
+
+
+# Discussion {#sec-discussion}
+
+<!-- ~1-1.5 pages. -->
+
+## Summary of Findings
+
+<!-- TODO: Synthesize: what did the arithmetic transformer teach us about
+     both the model AND the toolkit? -->
+
+## Limitations
+
+<!-- TODO: Be specific. E.g.:
+     - Forward hooks only; no backward hooks for gradient-based analysis
+     - No automated circuit discovery (ACDC-style)
+     - Hook overhead for very large models
+     - Logit lens assumes a meaningful unembedding matrix -->
+
+## Ethical Considerations
+
+Mechanistic interpretability tools are inherently dual-use. While they
+enable safety auditing, bias detection, and regulatory compliance, they
+could also be used to identify and exploit model vulnerabilities. We
+believe the benefits of transparency outweigh the risks, but acknowledge
+this tension.
+
+## Future Work
+
+<!-- TODO: E.g.:
+     - Backward hooks for gradient-based mechanistic analysis
+     - Automated circuit discovery (ACDC integration)
+     - Support for convolutional and recurrent architectures
+     - Scaling analysis to larger models (memory optimization)
+     - Integration with training-time interpretability (progress measures) -->
+
+
+# Conclusion
+
+<!-- ~0.5 page. Restate contributions concisely. No new information. -->
+
+We presented ModelLens, a general-purpose mechanistic interpretability
+toolkit for PyTorch neural networks. By leveraging forward hooks and a
+backend-adapter design pattern, ModelLens brings logit lens, activation
+patching, attention visualization, and residual stream analysis to
+arbitrary model architectures. We validated the toolkit by
+reverse-engineering a small transformer trained on three-digit addition,
+recovering interpretable structure consistent with prior findings in the
+mechanistic interpretability literature. The toolkit, including a
+Gradio-based web interface for interactive exploration, is publicly
+available.
+
+<!-- TODO: Add your GitHub repo URL here once ready. -->
+
+
+# References {.unnumbered}
+
+::: {#refs}
+:::
+
+
+<!-- ============================================================
+     APPENDIX — uncomment and fill in as needed
+     ============================================================ -->
+
+<!--
+# Appendix {.unnumbered}
+
+## A. Full Model Hyperparameters and Training Curves {.unnumbered}
+
+## B. Additional Visualizations {.unnumbered}
+
+## C. ModelLens API Usage Examples {.unnumbered}
+
+## D. Gradio Interface Screenshots {.unnumbered}
+-->

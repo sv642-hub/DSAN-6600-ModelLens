@@ -260,10 +260,16 @@ def tokenize_prompt(prompt, model_info):
         return tokenizer(prompt, return_tensors="pt")
 
     # Local model — try to find encode/tokenize functions from source
+    if vocab:
+        inv = {v: k for k, v in vocab.items()}
+        words = prompt.strip().split()
+        if all(w in inv for w in words):
+            ids = [inv[w] for w in words]
+            return torch.tensor([ids])
+    
     # Otherwise fall back to character-level encoding
     model = model_info["model"]
     vocab_size = len(vocab) if vocab else 100
-
     ids = [ord(c) % vocab_size for c in prompt]
     return torch.tensor([ids])
 

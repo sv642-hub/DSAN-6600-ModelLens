@@ -96,7 +96,7 @@ def evaluate(model, num_problems=200, max_value=999, device="cpu"):
 
 
 def train(
-    num_steps=3000,
+    num_steps=20000,
     batch_size=64,
     learning_rate=1e-3,
     eval_every=500,
