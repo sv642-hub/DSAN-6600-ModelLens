@@ -11,6 +11,7 @@ if _appdir not in sys.path:
     sys.path.insert(0, _appdir)
 
 from components import run_circuit_discovery_fig
+from config.interpretability import compute_output_comparison, render_prompt_output_cards
 from config.prompt_sync import (
     get_shared_corrupted,
     merge_chat_and_shared_clean,
@@ -23,12 +24,12 @@ from config.prompt_sync import (
 def render():
     st.header("Circuit discovery")
     st.caption(
-        "Heuristic component graph from clean vs corrupted patching-style importance: "
-        "nodes are high-effect modules; bar lengths show strength; edges summarize influence. "
-        "Exploratory sketch only — not a formal causal proof."
+        "This page builds a candidate circuit from patching-style importance plus lightweight "
+        "routing hints. It is useful for hypotheses and follow-up tests — not a standalone causal proof."
     )
     st.caption(
-        "Use this as a candidate map for follow-up tests: it proposes plausible pathways, then patching/ablation can validate them."
+        "Read the pathway graphic left to right for approximate depth; bar charts below rank "
+        "components and connection weights for inspection."
     )
     shared_prompts_callout()
     shared_prompt_status_row()
@@ -65,21 +66,52 @@ def render():
 
     if "circuit_discovery_cache" in st.session_state:
         c = st.session_state["circuit_discovery_cache"]
+        if c.get("clean") and c.get("corrupted"):
+            render_prompt_output_cards(
+                model_info,
+                str(c["clean"]),
+                str(c["corrupted"]),
+                c.get("forward_compare"),
+                patched_summary=(
+                    "The pathway diagram proposes how important components connect; "
+                    "validate with targeted patching or ablations."
+                ),
+            )
         st.markdown(c["summary_html"], unsafe_allow_html=True)
+
+        st.subheader("Candidate pathway")
+        st.caption(
+            "This view organizes discovered components into a candidate flow through the model. "
+            "Larger nodes reflect stronger estimated effect; thicker lines reflect stronger proposed links."
+        )
+        if c.get("fig_flow") is not None:
+            st.plotly_chart(
+                c["fig_flow"], use_container_width=True, key="circuit_fig_flow"
+            )
+        else:
+            st.info(
+                "Run **Discover** again to generate the pathway diagram (layout was updated)."
+            )
+        st.caption(
+            "Connections summarize proposed routing and should be treated as hypotheses for follow-up testing, "
+            "not confirmed mechanisms."
+        )
+
+        st.subheader("Supporting charts")
         g1, g2 = st.columns(2)
         with g1:
             st.plotly_chart(
                 c["fig_nodes"], use_container_width=True, key="circuit_fig_nodes"
             )
             st.caption(
-                "Node chart ranks candidate components by causal-style effect magnitude."
+                "Ranked effect magnitudes help compare candidates when the pathway graphic is crowded."
             )
         with g2:
             st.plotly_chart(
                 c["fig_edges"], use_container_width=True, key="circuit_fig_edges"
             )
             st.caption(
-                "Edge chart summarizes proposed routing links; treat high-weight edges as hypotheses, not confirmed mechanisms."
+                "Connection weights summarize inferred sequential and attention routing edges."
             )
 
     c1, _ = st.columns([1, 5])
@@ -101,18 +133,28 @@ def render():
         else:
             with st.spinner("Discovering circuit…"):
                 try:
-                    summary_html, fig_nodes, fig_edges = run_circuit_discovery_fig(
-                        lens,
-                        clean,
-                        corrupted,
-                        float(threshold),
+                    summary_html, fig_flow, fig_nodes, fig_edges = (
+                        run_circuit_discovery_fig(
+                            lens,
+                            clean,
+                            corrupted,
+                            float(threshold),
+                        )
                     )
                 except Exception as e:
                     st.error(f"{type(e).__name__}: {e}")
                     return
+                try:
+                    fwd_cmp = compute_output_comparison(model_info, clean, corrupted)
+                except Exception:
+                    fwd_cmp = None
                 st.session_state["circuit_discovery_cache"] = {
                     "summary_html": summary_html,
+                    "fig_flow": fig_flow,
                     "fig_nodes": fig_nodes,
                     "fig_edges": fig_edges,
+                    "clean": clean,
+                    "corrupted": corrupted,
+                    "forward_compare": fwd_cmp,
                 }
                 st.rerun()

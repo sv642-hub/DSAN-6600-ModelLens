@@ -719,6 +719,7 @@ def create_app():
                 )
                 run_cd = gr.Button("Discover circuit", variant="primary")
                 cd_summary = gr.HTML()
+                cd_fig_flow = gr.Plot(label="Candidate pathway")
                 cd_fig_nodes = gr.Plot(label="Circuit components")
                 cd_fig_edges = gr.Plot(label="Circuit connections")
 
@@ -736,7 +737,7 @@ def create_app():
                 run_cd.click(
                     _circuit,
                     [cd_clean, cd_cor, cd_threshold, lens_state],
-                    [cd_summary, cd_fig_nodes, cd_fig_edges],
+                    [cd_summary, cd_fig_flow, cd_fig_nodes, cd_fig_edges],
                 )
 
             # ---- 12 Batch Patching ----

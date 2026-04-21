@@ -76,6 +76,7 @@ from modellens.visualization.backward_flow import (
 )
 from modellens.visualization.attention import plot_attention_head_entropy
 from modellens.analysis.circuit_discovery import discover_circuit, summarize_circuit
+from modellens.visualization.circuit_flowchart import plot_circuit_story_flow
 from modellens.analysis.batch_patching import (
     run_batch_patching,
     summarize_batch_patching,
@@ -750,8 +751,8 @@ def run_circuit_discovery_fig(
     clean: str,
     corrupted: str,
     threshold: float = 0.3,
-) -> Tuple[str, Any, Any]:
-    """Run circuit discovery and return summary HTML + node/edge plots."""
+) -> Tuple[str, Any, Any, Any]:
+    """Run circuit discovery and return summary HTML + flow diagram + node/edge bar plots."""
     clean_t = tokenize(lens, clean)
     cor_t = tokenize(lens, corrupted)
     clean_t, cor_t = _align_patch_inputs(clean_t, cor_t)
@@ -880,7 +881,18 @@ def run_circuit_discovery_fig(
     else:
         fig_edges = _empty_fig("No circuit connections found.")
 
-    return summary_html, fig_nodes, fig_edges
+    if go is not None:
+        fig_flow = plot_circuit_story_flow(
+            nodes,
+            edges,
+            max_nodes=12,
+            title="Candidate circuit pathway (heuristic sketch)",
+            height=620,
+        )
+    else:
+        fig_flow = _empty_fig("Plotly unavailable for circuit flow diagram.")
+
+    return summary_html, fig_flow, fig_nodes, fig_edges
 
 
 def run_batch_patching_fig(
