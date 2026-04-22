@@ -7,7 +7,7 @@ import torch.nn as nn
 class TransformerBlock(nn.Module):
     """Single pre-norm transformer block: attention then MLP, both with residuals."""
 
-    def __init__(self, hidden_dim: int, num_heads: int, mlp_ratio: int = 4):
+    def __init__(self, hidden_dim: int = 128, num_heads: int = 4, mlp_ratio: int = 4):
         super().__init__()
         self.ln_1 = nn.LayerNorm(hidden_dim)
         self.attn = nn.MultiheadAttention(
@@ -51,7 +51,7 @@ class SentimentTransformer(nn.Module):
 
     def __init__(
         self,
-        vocab_size: int,
+        vocab_size: int = 5000,
         hidden_dim: int = 128,
         num_heads: int = 4,
         num_layers: int = 4,

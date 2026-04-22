@@ -45,6 +45,7 @@ def train(
     train_size: int = 5000,
     test_size: int = 1000,
     device: str | None = None,
+    vocab_size: int = 5000,  # Force vocab size for compatibility
 ):
     if device is None:
         if torch.backends.mps.is_available():
@@ -64,7 +65,15 @@ def train(
         (train_texts, train_labels), (test_texts, test_labels) = load_toy_sentiment()
         dataset_name = "toy"
 
-    vocab = build_vocab(train_texts, min_freq=2, max_size=20000)
+    vocab = build_vocab(train_texts, min_freq=2, max_size=vocab_size)
+    # Force vocab size to match app expectation
+    pad_count = vocab_size - len(vocab.token_to_id)
+    if pad_count > 0:
+        start_idx = len(vocab.token_to_id)
+        for i in range(pad_count):
+            pad_token = f"<pad_{start_idx + i}>"
+            vocab.token_to_id[pad_token] = start_idx + i
+            vocab.id_to_token[start_idx + i] = pad_token
 
     train_ds = SentimentDataset(train_texts, train_labels, vocab=vocab, max_len=max_len)
     test_ds = SentimentDataset(test_texts, test_labels, vocab=vocab, max_len=max_len)
@@ -73,7 +82,7 @@ def train(
     test_loader = DataLoader(test_ds, batch_size=batch_size)
 
     model = SentimentTransformer(
-        vocab_size=vocab.size,
+        vocab_size=len(vocab.token_to_id),
         hidden_dim=hidden_dim,
         num_heads=num_heads,
         num_layers=num_layers,
@@ -110,18 +119,10 @@ def train(
     elapsed = time.time() - start
     print(f"Training done in {elapsed:.1f}s")
 
-    ckpt = {
-        "model_state_dict": model.state_dict(),
-        "vocab": vocab.token_to_id,
-        "max_len": max_len,
-        "hidden_dim": hidden_dim,
-        "num_heads": num_heads,
-        "num_layers": num_layers,
-        "pad_id": vocab.pad_id,
-    }
+    # Save only the model state dict (for compatibility with transformer-fareeza style loaders)
     save_path = "trained_sentiment_transformer_sharanya.pt"
-    torch.save(ckpt, save_path)
-    print(f"Saved checkpoint to {save_path}")
+    torch.save(model.state_dict(), save_path)
+    print(f"Saved state_dict to {save_path}")
 
     return model, vocab
 
