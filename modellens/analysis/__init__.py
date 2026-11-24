@@ -31,6 +31,7 @@ from modellens.analysis.divergence import (
     first_divergence_module,
 )
 from modellens.analysis.training_snapshots import TrainingSnapshot, SnapshotStore
+from modellens.analysis.probe_features import run_probe_features, pool_activation
 
 __all__ = [
     # Logit lens
@@ -70,4 +71,7 @@ __all__ = [
     # Batch patching
     "run_batch_patching",
     "summarize_batch_patching",
+    # Probe features
+    "run_probe_features",
+    "pool_activation",
 ]

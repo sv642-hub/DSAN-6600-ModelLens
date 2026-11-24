@@ -142,6 +142,17 @@ results = run_residual_analysis(lens, tokens, layer_names=block_layers)
 critical = identify_critical_layers(results, threshold=0.05)
 ```
 
+### Probe Features
+
+Pooled layer activations, one vector per input, for training a linear probe:
+
+``` python
+features = lens.probe_features(tokens, ["model.layers.10", "model.layers.14"], pooling="last")
+features["model.layers.14"].shape  # [batch, hidden]
+```
+
+`pooling` is `"last"` (last real token, using the attention mask), `"mean"` (over real tokens) or a token index. Hooks are added for the call only, so hooks from `attach_*` are left alone. The output is the raw layer output, so for the last layer it is before the final norm.
+
 ### Embeddings Inspection
 
 ``` python

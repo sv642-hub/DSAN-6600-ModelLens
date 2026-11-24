@@ -173,6 +173,12 @@ class ModelLens:
 
         return run_layer_evolution(self, inputs, **kwargs)
 
+    def probe_features(self, inputs, layer_names, pooling="last"):
+        """Pooled layer activations for a linear probe, keyed by layer name."""
+        from modellens.analysis.probe_features import run_probe_features
+
+        return run_probe_features(self, inputs, layer_names, pooling=pooling)
+
     # ---- Cleanup ----
     def clear(self) -> None:
         """Remove all hooks and clear cached activations."""
